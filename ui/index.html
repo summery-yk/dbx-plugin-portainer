@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Portainer</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="field">
+        <label for="endpoint" data-i18n="endpoint">Environment</label>
+        <select id="endpoint"></select>
+      </div>
+      <button id="reload" type="button" data-i18n="reload">Reload</button>
+      <div class="segmented" role="group">
+        <button id="view-containers" class="segment active" type="button" data-i18n="viewContainers">Containers</button>
+        <button id="view-stacks" class="segment" type="button" data-i18n="viewStacks">Stacks</button>
+      </div>
+      <label class="checkbox">
+        <input type="checkbox" id="only-db" />
+        <span data-i18n="onlyDb">Databases only</span>
+      </label>
+      <input id="filter" type="search" data-i18n-placeholder="filterPlaceholder" placeholder="Filter by name or image" />
+      <span id="status" class="status"></span>
+    </header>
+
+    <main>
+      <section class="sidebar">
+        <div class="sidebar-head">
+          <button id="back-to-stacks" class="back hidden" type="button">&#8592; <span data-i18n="stacks">Stacks</span></button>
+          <span id="sidebar-title" class="sidebar-title" data-i18n="containers">Containers</span>
+          <span id="sidebar-count" class="count"></span>
+        </div>
+        <ul id="items" class="items"></ul>
+      </section>
+
+      <section class="detail">
+        <div class="tabs">
+          <button class="tab active" data-tab="overview" type="button" data-i18n="tabOverview">Overview</button>
+          <button class="tab" data-tab="logs" type="button" data-i18n="tabLogs">Logs</button>
+          <button class="tab" data-tab="inspect" type="button" data-i18n="tabInspect">Inspect</button>
+          <button class="tab" data-tab="stats" type="button" data-i18n="tabStats">Stats</button>
+          <button class="tab" data-tab="connect" type="button" data-i18n="tabConnect">Connection</button>
+        </div>
+
+        <div id="panel-overview" class="panel">
+          <p class="hint" data-i18n="pickContainer">Select a container on the left.</p>
+        </div>
+
+        <div id="panel-logs" class="panel hidden">
+          <div class="log-settings">
+            <label class="switch-row">
+              <span data-i18n="autoRefresh">Auto refresh logs</span>
+              <span class="switch"><input type="checkbox" id="log-auto-refresh" /><i></i></span>
+            </label>
+            <label class="switch-row">
+              <span data-i18n="wrapLines">Wrap lines</span>
+              <span class="switch"><input type="checkbox" id="log-wrap" checked /><i></i></span>
+            </label>
+            <label class="switch-row">
+              <span data-i18n="showTimestamps">Show timestamps</span>
+              <span class="switch"><input type="checkbox" id="log-timestamps" /><i></i></span>
+            </label>
+            <label class="field">
+              <span data-i18n="range">Range</span>
+              <select id="log-range">
+                <option value="all" data-i18n="rangeAll">All logs</option>
+                <option value="1h" data-i18n="range1h">Last hour</option>
+                <option value="24h" data-i18n="range24h">Last 24 hours</option>
+                <option value="7d" data-i18n="range7d">Last 7 days</option>
+              </select>
+            </label>
+            <label class="field">
+              <span data-i18n="lines">Lines</span>
+              <input id="log-lines" type="number" value="100" min="10" max="5000" />
+            </label>
+            <label class="field grow">
+              <span data-i18n="search">Search</span>
+              <input id="log-search" type="search" data-i18n-placeholder="searchPlaceholder" placeholder="Filter..." />
+            </label>
+            <div class="log-actions">
+              <button id="log-download" type="button" data-i18n="download">Download</button>
+              <button id="log-copy" type="button" data-i18n="copy">Copy</button>
+              <button id="log-copy-selected" type="button" disabled data-i18n="copySelected">Copy selected</button>
+              <button id="log-clear-selection" type="button" disabled data-i18n="clearSelection">Clear selection</button>
+            </div>
+          </div>
+          <div id="logs" class="log-view" data-i18n-empty="noLogs"></div>
+        </div>
+
+        <div id="panel-inspect" class="panel hidden">
+          <p class="hint" data-i18n="pickContainer">Select a container on the left.</p>
+        </div>
+
+        <div id="panel-stats" class="panel hidden">
+          <p class="hint" data-i18n="statsHint">Select a container to sample its resource usage.</p>
+        </div>
+
+        <div id="panel-connect" class="panel hidden">
+          <p class="hint" data-i18n="pickContainer">Select a container on the left.</p>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
