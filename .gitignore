@@ -1,0 +1,14 @@
+# build output
+dist/
+.dbx-dev/
+
+# local tooling
+.playwright-cli/
+output/
+
+# go build artifacts
+backend/backend
+backend/backend.exe
+
+# dependencies
+node_modules/

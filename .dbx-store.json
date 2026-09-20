@@ -1,0 +1,17 @@
+{
+  "name": "Portainer",
+  "description": "Browse Portainer environments, stacks and containers from DBX, inspect resource usage and read container logs, with MCP tools for AI clients.",
+  "icon": "assets/plugin.svg",
+  "tags": ["portainer", "docker", "container", "stack", "logs", "mcp"],
+  "permissions": ["host.workbench"],
+  "source": "https://github.com/summery-yk/dbx-plugin-portainer",
+  "homepage": "https://github.com/summery-yk/dbx-plugin-portainer",
+  "license": "Apache-2.0",
+  "releaseNotes": "Adds an MCP tool surface: nine read-only tools for environments, stacks, containers, database discovery, container logs and resource stats, backed by a reusable MCP support package for other plugins.",
+  "localizations": {
+    "zh-CN": {
+      "name": "Portainer",
+      "description": "在 DBX 中浏览 Portainer 的环境、堆栈与容器，查看资源占用并阅读容器日志，同时向 AI 客户端提供 MCP 工具。"
+    }
+  }
+}

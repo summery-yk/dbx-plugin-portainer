@@ -1,0 +1,11 @@
+# Store LF in the repository and keep LF in checkouts on every platform.
+# Without this, a Windows checkout would hand CRLF sources to the Linux CI,
+# where `gofmt -l` reports every Go file as unformatted.
+* text=auto eol=lf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.dbxp binary
+*.ico binary

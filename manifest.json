@@ -1,0 +1,129 @@
+{
+  "$schema": "https://raw.githubusercontent.com/t8y2/dbx/plugin-sdk-v1/plugins/manifest.schema.json",
+  "manifest_version": 1,
+  "id": "io.github.summery-yk.portainer",
+  "name": "Portainer",
+  "version": "0.2.0",
+  "publisher": "summery-yk",
+  "description": "Browse Portainer environments and database containers, and read container logs from DBX.",
+  "icon": "assets/plugin.svg",
+  "engines": {
+    "dbx": ">=0.5.68",
+    "host_api": "1"
+  },
+  "permissions": ["host.workbench"],
+  "entrypoints": {
+    "backend": {
+      "executable": "bin/dbx-plugin-portainer"
+    },
+    "ui": {
+      "root": "ui",
+      "entry": "ui/index.html"
+    }
+  },
+  "contributions": [
+    {
+      "type": "connection-provider",
+      "id": "io.github.summery-yk.portainer.connection",
+      "label": "Portainer",
+      "icon": "assets/connection.svg",
+      "database_type": "portainer",
+      "description": "Connect to a Portainer instance and browse its environments.",
+      "workbench": "io.github.summery-yk.portainer.workbench",
+      "capabilities": ["test", "connect", "disconnect"],
+      "fields": [
+        {
+          "key": "display_name",
+          "label": "Connection name",
+          "type": "text",
+          "default": "Portainer",
+          "binding": "name",
+          "required": true
+        },
+        {
+          "key": "protocol",
+          "label": "Protocol",
+          "type": "select",
+          "binding": "config",
+          "default": "http",
+          "options": [
+            { "label": "http", "value": "http" },
+            { "label": "https", "value": "https" }
+          ]
+        },
+        {
+          "key": "host",
+          "label": "Host",
+          "type": "text",
+          "binding": "host",
+          "required": true,
+          "placeholder": "192.168.100.111"
+        },
+        {
+          "key": "port",
+          "label": "Port",
+          "type": "number",
+          "binding": "port",
+          "default": 8000,
+          "required": true
+        },
+        {
+          "key": "api_token",
+          "label": "API access token",
+          "type": "password",
+          "binding": "secret",
+          "required": true,
+          "description": "Created in Portainer under My account then Access tokens."
+        },
+        {
+          "key": "tls_verify",
+          "label": "Verify TLS certificate",
+          "type": "boolean",
+          "binding": "config",
+          "default": true
+        }
+      ]
+    },
+    {
+      "type": "workbench",
+      "id": "io.github.summery-yk.portainer.workbench",
+      "label": "Portainer",
+      "description": "Browse environments, containers, ports and logs.",
+      "icon": "assets/plugin.svg"
+    },
+    {
+      "type": "context-menu",
+      "id": "io.github.summery-yk.portainer.open-workbench",
+      "label": "Open Portainer workbench",
+      "menu": "connection",
+      "icon": "assets/plugin.svg"
+    }
+  ],
+  "localizations": {
+    "zh-CN": {
+      "name": "Portainer",
+      "description": "在 DBX 中浏览 Portainer 环境与数据库容器，并查看容器日志。",
+      "contributions": {
+        "io.github.summery-yk.portainer.connection": {
+          "label": "Portainer",
+          "description": "连接一个 Portainer 实例并浏览它的环境。",
+          "fields": {
+            "display_name": { "label": "连接名称" },
+            "protocol": { "label": "协议" },
+            "host": { "label": "主机" },
+            "port": { "label": "端口" },
+            "api_token": { "label": "API 访问令牌", "description": "在 Portainer 的「我的账户 → 访问令牌」中创建。" },
+            "tls_verify": { "label": "校验 TLS 证书" }
+          }
+        },
+        "io.github.summery-yk.portainer.workbench": {
+          "label": "Portainer 工作台",
+          "description": "浏览环境、容器、端口映射与日志。"
+        },
+        "io.github.summery-yk.portainer.open-workbench": {
+          "label": "打开 Portainer 工作台"
+        }
+      }
+    }
+  }
+}
