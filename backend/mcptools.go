@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"sort"
 	"strings"
 
@@ -53,9 +52,8 @@ func (p *plugin) registerMCPTools(registry *mcp.Registry) {
 
 	registry.Add(mcp.Tool{
 		Name: "portainer_list_stacks",
-		Description: "List Compose stacks in an environment. Containers are grouped by the " +
-			"com.docker.compose.project label, which covers both Portainer-managed stacks and " +
-			"Compose projects deployed outside Portainer.",
+		Description: "List stacks in an environment. Docker containers are grouped by the " +
+			"com.docker.compose.project label; Kubernetes containers are grouped by namespace.",
 		Schema: mcp.ObjectSchema(map[string]any{
 			"environmentId": mcp.Prop("integer", "Portainer environment id"),
 			"includeEmpty":  mcp.PropWithDefault("boolean", "Also return stacks without containers", false),
@@ -65,11 +63,11 @@ func (p *plugin) registerMCPTools(registry *mcp.Registry) {
 
 	registry.Add(mcp.Tool{
 		Name: "portainer_list_containers",
-		Description: "List containers in an environment with state, health, image, stack, service and " +
-			"published ports. Supports filtering by stack, state, name, image and database containers only.",
+		Description: "List Docker containers or Kubernetes pod containers with state, health, image, " +
+			"stack/namespace, service and published ports. Supports filtering by stack, state, name, image and database containers only.",
 		Schema: mcp.ObjectSchema(map[string]any{
 			"environmentId":   mcp.Prop("integer", "Portainer environment id"),
-			"stack":           mcp.Prop("string", "Only containers of this Compose project, e.g. bjjlml-test"),
+			"stack":           mcp.Prop("string", "Only containers of this Compose project or Kubernetes namespace, e.g. bjjlml-test"),
 			"state":           mcp.PropEnum("Only containers in this state", "all", "running", "stopped"),
 			"onlyDatabases":   mcp.PropWithDefault("boolean", "Only database containers (MySQL, PostgreSQL, Redis, MongoDB, ...)", false),
 			"nameContains":    mcp.Prop("string", "Case-insensitive substring match on the container name"),
@@ -117,8 +115,8 @@ func (p *plugin) registerMCPTools(registry *mcp.Registry) {
 
 	registry.Add(mcp.Tool{
 		Name: "portainer_container_logs",
-		Description: "Read container logs. Supports a time range, a line limit, timestamps and a " +
-			"case-insensitive substring filter; the multi-stream Docker framing is decoded for you.",
+		Description: "Read Docker or Kubernetes container logs. Supports a time range, a line limit, " +
+			"timestamps and a case-insensitive substring filter; Docker multi-stream framing is decoded for you.",
 		Schema: mcp.ObjectSchema(map[string]any{
 			"environmentId": mcp.Prop("integer", "Portainer environment id"),
 			"container":     mcp.Prop("string", "Container name or id"),
@@ -133,8 +131,8 @@ func (p *plugin) registerMCPTools(registry *mcp.Registry) {
 
 	registry.Add(mcp.Tool{
 		Name: "portainer_container_stats",
-		Description: "Sample one container's resource usage once: CPU percent, memory usage and limit, " +
-			"network and block-device I/O, and process count.",
+		Description: "Sample one container's resource usage once from Docker stats or the Kubernetes " +
+			"metrics API: CPU percent, memory usage and limit, network and block-device I/O, and process count.",
 		Schema: mcp.ObjectSchema(map[string]any{
 			"environmentId": mcp.Prop("integer", "Portainer environment id"),
 			"container":     mcp.Prop("string", "Container name or id"),
@@ -199,14 +197,20 @@ func resolveContainerID(target *session, endpointID int, reference string) (stri
 	if trimmed == "" {
 		return "", errors.New("container name or id must not be empty")
 	}
+	if strings.HasPrefix(trimmed, k8sContainerIDPrefix) {
+		if _, _, _, ok := decodeK8sContainerID(trimmed); ok {
+			return trimmed, nil
+		}
+	}
 	if len(trimmed) >= 12 && isHexString(trimmed) {
 		return trimmed, nil
 	}
-	body, pluginError := target.get(containerListPath(endpointID), url.Values{"all": {"1"}})
-	if pluginError != nil {
-		return "", asError(pluginError)
+	if isKubernetesEndpoint(target, endpointID) {
+		if _, _, _, ok := decodeK8sContainerID(trimmed); ok {
+			return trimmed, nil
+		}
 	}
-	containers, pluginError := decodeContainers(body)
+	containers, pluginError := listContainers(target, endpointID, map[string]any{"all": true})
 	if pluginError != nil {
 		return "", asError(pluginError)
 	}

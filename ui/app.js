@@ -7,6 +7,9 @@ const state = {
   connectionId: "",
   endpoints: [],
   endpointId: 0,
+  kubernetes: false,
+  namespace: "",
+  namespaces: [],
   view: "containers",
   containers: [],
   stacks: [],
@@ -24,11 +27,12 @@ const state = {
 
 const strings = {
   zh: {
-    endpoint: "环境", reload: "刷新", viewContainers: "容器", viewStacks: "堆栈",
-    onlyDb: "只看数据库", filterPlaceholder: "过滤容器名或镜像",
-    containers: "容器", stacks: "堆栈",
+    endpoint: "环境", reload: "刷新", viewContainers: "容器", viewStacks: "堆栈 / 命名空间",
+    namespace: "命名空间", allNamespaces: "全部命名空间", namespaces: "命名空间",
+    onlyDb: "只看数据库", filterPlaceholder: "过滤容器名、Pod、命名空间或镜像",
+    containers: "容器", stacks: "堆栈 / 命名空间", pods: "Pod 内容器",
     tabOverview: "概览", tabLogs: "日志", tabInspect: "检查", tabStats: "统计", tabConnect: "连接参数",
-    autoRefresh: "自动刷新日志", wrapLines: "自动换行", showTimestamps: "显示时间戳",
+    autoRefresh: "自动刷新日志", wrapLines: "自动换行", showTimestamps: "显示时间戳", previousLogs: "上一轮容器日志",
     range: "获取范围", rangeAll: "全部日志", range1h: "最近 1 小时", range24h: "最近 24 小时", range7d: "最近 7 天",
     lines: "行数", search: "搜索", searchPlaceholder: "过滤…",
     download: "下载日志", copy: "复制", copySelected: "复制所选行", clearSelection: "取消选择",
@@ -48,11 +52,12 @@ const strings = {
     statsReceived: "接收", statsSent: "发送", statsRead: "读", statsWrite: "写", statsSampledAt: "采样时间",
   },
   en: {
-    endpoint: "Environment", reload: "Reload", viewContainers: "Containers", viewStacks: "Stacks",
-    onlyDb: "Databases only", filterPlaceholder: "Filter by name or image",
-    containers: "Containers", stacks: "Stacks",
+    endpoint: "Environment", reload: "Reload", viewContainers: "Containers", viewStacks: "Stacks / Namespaces",
+    namespace: "Namespace", allNamespaces: "All namespaces", namespaces: "Namespaces",
+    onlyDb: "Databases only", filterPlaceholder: "Filter by name, pod, namespace or image",
+    containers: "Containers", stacks: "Stacks / Namespaces", pods: "Pod containers",
     tabOverview: "Overview", tabLogs: "Logs", tabInspect: "Inspect", tabStats: "Stats", tabConnect: "Connection",
-    autoRefresh: "Auto refresh logs", wrapLines: "Wrap lines", showTimestamps: "Show timestamps",
+    autoRefresh: "Auto refresh logs", wrapLines: "Wrap lines", showTimestamps: "Show timestamps", previousLogs: "Previous container logs",
     range: "Range", rangeAll: "All logs", range1h: "Last hour", range24h: "Last 24 hours", range7d: "Last 7 days",
     lines: "Lines", search: "Search", searchPlaceholder: "Filter...",
     download: "Download", copy: "Copy", copySelected: "Copy selected", clearSelection: "Clear selection",
@@ -82,6 +87,57 @@ function $(id) {
 async function invoke(method, params) {
   const payload = Object.assign({ connectionId: state.connectionId }, params || {});
   return window.dbxPlugin.invoke(method, payload, { timeoutMs: 60000 });
+}
+
+function isKubernetes() {
+  const endpoint = state.endpoints.find((item) => item.id === state.endpointId);
+  return Boolean(endpoint && endpoint.type === 5);
+}
+
+function currentStackLabel() {
+  return state.kubernetes ? text.namespaces : text.stacks;
+}
+
+function syncModeLabels() {
+  $("namespace-field").classList.toggle("hidden", !state.kubernetes);
+  $("log-previous-row").classList.toggle("hidden", !state.kubernetes);
+  $("view-stacks").textContent = state.kubernetes ? text.namespaces : text.stacks;
+  $("back-to-stacks").lastElementChild.textContent = currentStackLabel();
+  if (state.view === "stacks" && !state.currentStack) {
+    $("sidebar-title").textContent = currentStackLabel();
+  }
+}
+
+function syncNamespaceOptions() {
+  if (!state.kubernetes) {
+    state.namespace = "";
+    state.namespaces = [];
+    $("namespace").textContent = "";
+    return;
+  }
+  const names = new Set();
+  state.containers.forEach((item) => {
+    if (item.stack) names.add(item.stack);
+  });
+  state.stacks.forEach((item) => {
+    if (item.name) names.add(item.name);
+  });
+  state.namespaces = Array.from(names).sort();
+  const select = $("namespace");
+  const previous = state.namespace;
+  select.textContent = "";
+  const all = document.createElement("option");
+  all.value = "";
+  all.textContent = text.allNamespaces;
+  select.appendChild(all);
+  state.namespaces.forEach((name) => {
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    select.appendChild(option);
+  });
+  state.namespace = state.namespaces.includes(previous) ? previous : "";
+  select.value = state.namespace;
 }
 
 function setStatus(message, kind) {
@@ -185,13 +241,14 @@ function renderSidebar() {
   const count = $("sidebar-count");
 
   if (state.view === "stacks" && !state.currentStack) {
-    title.textContent = text.stacks;
+    title.textContent = currentStackLabel();
     count.textContent = String(state.stacks.length);
     renderStackList(list);
     return;
   }
 
-  title.textContent = state.currentStack ? state.currentStack : text.containers;
+  const containerLabel = state.kubernetes ? text.pods : text.containers;
+  title.textContent = state.currentStack ? state.currentStack : containerLabel;
   const items = visibleContainers();
   count.textContent = String(items.length);
   renderContainerList(list, items);
@@ -230,7 +287,9 @@ function renderStackList(list) {
 
     const meta = document.createElement("div");
     meta.className = "card-meta";
-    meta.textContent = stack.services ? stack.services + " services" : stack.containers + " containers";
+    meta.textContent = state.kubernetes
+      ? stack.containers + " " + text.pods
+      : stack.services ? stack.services + " services" : stack.containers + " containers";
     card.appendChild(meta);
 
     list.appendChild(card);
@@ -286,13 +345,21 @@ function renderContainerList(list, items) {
 function visibleContainers() {
   const needle = state.filter.trim().toLowerCase();
   return state.containers.filter((item) => {
+    const stack = item.stack || "";
+    if (state.currentStack && stack !== state.currentStack) {
+      return false;
+    }
+    if (state.kubernetes && state.namespace && stack !== state.namespace) {
+      return false;
+    }
     if (state.onlyDb && !state.databases.has(item.id)) {
       return false;
     }
     if (!needle) {
       return true;
     }
-    return (item.name + " " + item.image + " " + (item.service || "")).toLowerCase().indexOf(needle) >= 0;
+    const haystack = [item.name, item.image, item.service, stack].filter(Boolean).join(" ").toLowerCase();
+    return haystack.indexOf(needle) >= 0;
   });
 }
 
@@ -313,10 +380,11 @@ async function loadContainers() {
         // Database discovery is best effort.
       }
     }
+    syncNamespaceOptions();
     if (!state.currentStack) {
       renderSidebar();
     }
-    setStatus(state.containers.length + " " + text.containers);
+    setStatus(state.containers.length + " " + (state.kubernetes ? text.pods : text.containers));
   } catch (error) {
     setStatus(errorMessage(error), "error");
   }
@@ -325,33 +393,31 @@ async function loadContainers() {
 async function loadStacks() {
   setStatus(text.loading);
   try {
-    const result = await invoke("portainer/stacks", { endpointId: state.endpointId });
+    const method = state.kubernetes ? "portainer/namespaces" : "portainer/stacks";
+    const result = await invoke(method, { endpointId: state.endpointId });
     state.stacks = result.items || [];
+    syncNamespaceOptions();
     renderSidebar();
-    setStatus(state.stacks.length + " " + text.stacks);
+    setStatus(state.stacks.length + " " + currentStackLabel());
   } catch (error) {
     setStatus(errorMessage(error), "error");
   }
 }
 
-async function enterStack(name) {
+function enterStack(name) {
   state.currentStack = name;
-  setStatus(text.loading);
-  try {
-    const result = await invoke("portainer/stackContainers", { endpointId: state.endpointId, stack: name });
-    state.containers = result.items || [];
-    state.selectedId = "";
-    $("back-to-stacks").classList.remove("hidden");
-    renderSidebar();
-    setStatus(name + ": " + state.containers.length + " " + text.containers);
-  } catch (error) {
-    setStatus(errorMessage(error), "error");
-  }
+  state.namespace = state.kubernetes ? name : state.namespace;
+  state.selectedId = "";
+  $("back-to-stacks").classList.remove("hidden");
+  renderSidebar();
+  const visible = visibleContainers().length;
+  setStatus(name + ": " + visible + " " + (state.kubernetes ? text.pods : text.containers));
 }
 
 function backToStacks() {
   state.currentStack = "";
-  state.containers = [];
+  state.namespace = "";
+  $("namespace").value = "";
   state.selectedId = "";
   state.detail = null;
   stopAutoRefresh();
@@ -369,12 +435,16 @@ async function loadEndpoints() {
     state.endpoints.forEach((endpoint) => {
       const option = document.createElement("option");
       option.value = String(endpoint.id);
-      option.textContent = endpoint.name + (endpoint.status === 1 ? "" : " (offline)");
+      const kind = endpoint.type === 5 ? " (k8s)" : "";
+      option.textContent = endpoint.name + kind + (endpoint.status === 1 ? "" : " (offline)");
       select.appendChild(option);
     });
     const preferred = state.endpoints.find((endpoint) => endpoint.status === 1) || state.endpoints[0];
     if (preferred) {
       state.endpointId = preferred.id;
+      state.kubernetes = Number(preferred.type) === 5;
+      state.namespace = "";
+      syncModeLabels();
       select.value = String(preferred.id);
       await loadContainers();
     } else {
@@ -454,6 +524,11 @@ function renderInspect(detail) {
   }
   appendRow(panel, "Id", detail.id);
   appendRow(panel, "Name", detail.name);
+  if (detail.namespace) appendRow(panel, "Namespace", detail.namespace);
+  if (detail.pod) appendRow(panel, "Pod", detail.pod);
+  if (detail.container) appendRow(panel, "Container", detail.container);
+  if (detail.node) appendRow(panel, "Node", detail.node);
+  if (detail.restartCount !== undefined) appendRow(panel, "Restarts", detail.restartCount);
   appendRow(panel, "Image", detail.image);
   appendRow(panel, "State", detail.state + (detail.running ? " (" + text.running + ")" : ""));
   appendRow(panel, text.restartPolicy, detail.restartPolicy);
@@ -487,7 +562,7 @@ function renderConnect(container) {
   appendRow(panel, "Host", database.host || "(unknown)");
   appendRow(panel, "Port", String(database.port));
   appendRow(panel, "Container", database.containerName);
-  appendRow(panel, "Stack", container.stack);
+  appendRow(panel, state.kubernetes ? "Namespace" : "Stack", container.stack);
   const button = document.createElement("button");
   button.type = "button";
   button.textContent = text.copy;
@@ -598,6 +673,7 @@ async function loadLogs(silent) {
       containerId: state.selectedId,
       tail: Number($("log-lines").value) || 100,
       timestamps: $("log-timestamps").checked,
+      previous: state.kubernetes && $("log-previous").checked,
       range: $("log-range").value,
     });
     state.logs = String(result.text || "").split(/\r?\n/);
@@ -762,14 +838,27 @@ function bindEvents() {
   });
   $("endpoint").addEventListener("change", (event) => {
     state.endpointId = Number(event.target.value);
+    const endpoint = state.endpoints.find((item) => item.id === state.endpointId);
+    state.kubernetes = Boolean(endpoint && endpoint.type === 5);
+    state.namespace = "";
     state.containers = [];
     state.selectedId = "";
     state.currentStack = "";
+    syncModeLabels();
     stopAutoRefresh();
     if (state.view === "stacks") {
       loadStacks();
     } else {
       loadContainers();
+    }
+  });
+  $("namespace").addEventListener("change", (event) => {
+    state.namespace = event.target.value;
+    state.currentStack = "";
+    if (state.namespace) {
+      setView("containers");
+    } else {
+      renderSidebar();
     }
   });
   $("view-containers").addEventListener("click", () => setView("containers"));
@@ -789,6 +878,7 @@ function bindEvents() {
   $("log-wrap").addEventListener("change", renderLogs);
   $("log-search").addEventListener("input", renderLogs);
   $("log-timestamps").addEventListener("change", () => loadLogs());
+  $("log-previous").addEventListener("change", () => loadLogs());
   $("log-range").addEventListener("change", () => loadLogs());
   $("log-lines").addEventListener("change", () => loadLogs());
   $("log-auto-refresh").addEventListener("change", syncAutoRefresh);
@@ -825,6 +915,17 @@ async function boot() {
   if (!state.connectionId) {
     setStatus(text.noConnection, "error");
     return;
+  }
+
+  // A workbench tab can outlive the sidecar process (DBX restart, plugin
+  // reinstall, or opening the same connection in two tabs). The context only
+  // carries the connection id, so ask the host to re-establish the session
+  // before issuing any backend.invoke calls.
+  try {
+    await window.dbxPlugin.request("host.reopenConnection", { connectionId: state.connectionId });
+  } catch (error) {
+    // Some hosts establish the session themselves. Continue and surface the
+    // real error from the first backend call if the session is still missing.
   }
 
   bindEvents();

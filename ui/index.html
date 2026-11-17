@@ -12,6 +12,12 @@
         <label for="endpoint" data-i18n="endpoint">Environment</label>
         <select id="endpoint"></select>
       </div>
+      <div class="field hidden" id="namespace-field">
+        <label for="namespace" data-i18n="namespace">Namespace</label>
+        <select id="namespace">
+          <option value="" data-i18n="allNamespaces">All namespaces</option>
+        </select>
+      </div>
       <button id="reload" type="button" data-i18n="reload">Reload</button>
       <div class="segmented" role="group">
         <button id="view-containers" class="segment active" type="button" data-i18n="viewContainers">Containers</button>
@@ -61,6 +67,10 @@
             <label class="switch-row">
               <span data-i18n="showTimestamps">Show timestamps</span>
               <span class="switch"><input type="checkbox" id="log-timestamps" /><i></i></span>
+            </label>
+            <label class="switch-row hidden" id="log-previous-row">
+              <span data-i18n="previousLogs">Previous container logs</span>
+              <span class="switch"><input type="checkbox" id="log-previous" /><i></i></span>
             </label>
             <label class="field">
               <span data-i18n="range">Range</span>
