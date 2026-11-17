@@ -59,13 +59,20 @@ DBX 是一个 20 MB 的跨平台数据库客户端，内置 90+ 种数据库驱�
 
 需要 Node.js 22+ 与 Go 1.22+。
 
+> **多平台**：DBX CLI 对带 Go 后端的插件强制 `--target` 等于构建主机，不能单机交叉打包。
+> 五个平台（windows-x64 / darwin-x64 / darwin-arm64 / linux-x64 / linux-arm64）由
+> `.github/workflows/plugin-release.yml` 在各自原生 runner 上构建并汇总为一个 Release；
+> 打 `v<version>` tag 或到 Actions 手动触发即可。本机打包默认取当前平台。
+
 ```bash
-npm install --global @dbx-app/plugin-cli
+npm install --global @dbx-app/plugin-cli@0.1.10
 cd dbx-plugin-portainer
 dbx-plugin package . --output-dir dist
+# 显式指定 target（须与当前构建主机一致，否则 CLI 报错）：
+# dbx-plugin package . --target linux-x64 --output-dir dist
 ```
 
-产物：
+产物（每个平台各一份）：
 
 ```
 dist/<plugin-id>-<version>-<target>.dbxp
@@ -73,6 +80,25 @@ dist/<plugin-id>-<version>-<target>.artifact.json
 ```
 
 `@dbx-app/plugin-cli` 自带 DBX 官方 Go SDK，打包时会生成 `go.work` 把 `backend/` 与 SDK 一起纳入 workspace。
+
+### 发布到 DBX 商店
+
+工作流会为每个平台构建产物，然后：
+
+- `scripts/prepare-store-submission.py` 自动发现 `dist/` 下全部平台产物，逐个复校
+  sha256/size，生成多 `artifacts` 的 `release-candidates.json` 与多 `targets` 的候选 PR；
+- `scripts/github-publish.py` 上传每个平台的 `.dbxp` + `.artifact.json`，再加
+  `release-candidates.json`（N 平台共 2N+1 个资产）。
+
+手动重发已有 tag：
+
+```bash
+GITHUB_TOKEN=ghp_xxx python scripts/github-publish.py \
+  --repo OWNER/REPO --tag v0.2.0 --release-only
+```
+
+随后向 `t8y2/dbx-store:main` 提交 `dist/store/candidates/<plugin-id>.json`；
+`source` / `homepage` 以实际发布仓库为准（生成脚本会自动写入）。
 
 ### 提交前自检
 

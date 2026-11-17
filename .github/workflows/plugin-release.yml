@@ -1,18 +1,136 @@
-name: Release DBX plugin
+name: Release DBX plugin (multi-platform)
 
+# The DBX CLI enforces that a backend plugin's --target equals the build host
+# ("Native plugin target ... does not match build host ...; run this package
+# command on the target platform"). Each target therefore builds on its own
+# native runner; results are merged into one GitHub Release.
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing version tag to (re)publish, e.g. v0.2.0"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows-x64
+            runner: windows-latest
+          - target: darwin-x64
+            runner: macos-15-intel
+          - target: darwin-arm64
+            runner: macos-15
+          - target: linux-x64
+            runner: ubuntu-latest
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Go (from backend/go.mod)
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          # The official SDK is vendored via a local `replace` in backend/go.mod
+          # and there is no go.sum, so cache on go.mod itself.
+
+      - name: Install DBX Plugin CLI
+        run: npm install --global @dbx-app/plugin-cli@0.1.10
+
+      - name: Package ${{ matrix.target }}
+        shell: bash
+        run: |
+          dbx-plugin package . \
+            --target "${{ matrix.target }}" \
+            --output-dir dist
+          echo "--- artifact ---"
+          cat "dist/io.github.summery-yk.portainer-"*-"${{ matrix.target }}".artifact.json
+
+      - name: Upload unsigned candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbxp-${{ matrix.target }}
+          path: |
+            dist/*.dbxp
+            dist/*.artifact.json
+          if-no-files-found: error
+          retention-days: 7
+
   release:
-    uses: t8y2/dbx/.github/workflows/plugin-release-reusable.yml@plugin-cli-v0.1.9
-    with:
-      release-tag: ${{ github.event.release.tag_name }}
-      package-command: dbx-plugin package .
-      package-path: dist/*.dbxp
-      metadata-path: dist/*.artifact.json
-      plugin-cli-version: 0.1.9
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Merge platform artifacts into dist/
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dbxp-*
+          merge-multiple: true
+          path: dist
+
+      - name: Resolve release tag
+        id: meta
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Release tag: $TAG"
+
+      - name: Verify every platform artifact
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          files = sorted(Path("dist").glob("*.artifact.json"))
+          targets = [json.loads(p.read_text(encoding="utf-8"))["target"] for p in files]
+          expected = ["darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64", "windows-x64"]
+          assert targets == expected, f"unexpected targets: {targets} (expected {expected})"
+          print("verified targets:", ", ".join(targets))
+          PY
+
+      - name: Generate store submission metadata
+        shell: bash
+        run: |
+          python scripts/prepare-store-submission.py \
+            --repo "${{ github.repository }}" \
+            --tag "${{ steps.meta.outputs.tag }}"
+
+      - name: Create release and upload all platform assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          python scripts/github-publish.py \
+            --repo "${{ github.repository }}" \
+            --tag "${{ steps.meta.outputs.tag }}" \
+            --release-only

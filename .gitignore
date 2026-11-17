@@ -12,3 +12,7 @@ backend/backend.exe
 
 # dependencies
 node_modules/
+
+# python caches (release scripts)
+__pycache__/
+*.pyc
